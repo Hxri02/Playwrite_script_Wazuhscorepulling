@@ -1,0 +1,13 @@
+# Wazuh Agent ID Lookup
+# Generated : 2026-05-23 12:00:09
+# Format    : HOSTNAME  →  AGENT_ID
+──────────────────────────────────────────
+BBDSK0823                      →  NOT FOUND
+BBDSK0802                      →  NOT FOUND
+BBDSK0788                      →  NOT FOUND
+BBDSK0891                      →  NOT FOUND
+BBDSK0831                      →  NOT FOUND
+BBDSK0930                      →  NOT FOUND
+BBDSK0872                      →  NOT FOUND
+BBDSK0792                      →  NOT FOUND
+BBDSK0806                      →  NOT FOUND

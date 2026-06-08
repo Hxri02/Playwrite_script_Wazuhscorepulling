@@ -1,0 +1,248 @@
+WAZUH ASSET SCRAPE REPORT
+Generated : 2026-05-23 11:59:33
+Total     : 9 assets
+================================================================
+
+────────────────────────────────────────────────────────────────
+  ASSET        : BBDSK0823
+  AGENT ID     : 
+  Status       : 
+  IP Address   : 
+  OS           : 
+  Version      : 
+  Group        : 
+  Cluster Node : 
+  Reg. Date    : 
+  Last Alive   : 
+  ── Vulnerabilities ────────────────────────────────
+  Critical     : 
+  High         : 
+  Medium       : 
+  Low          : 
+  ── SCA Latest Scan ────────────────────────────────
+  Policy       : 
+  End Scan     : 
+  Passed       : 
+  Failed       : 
+  N/A          : 
+  Score        : 
+  Scraped At   : 2026-05-23 12:00:10
+  ⚠️  Error      : Agent ID not found in wazuh-states-vulnerabilities index
+────────────────────────────────────────────────────────────────
+
+────────────────────────────────────────────────────────────────
+  ASSET        : BBDSK0802
+  AGENT ID     : 
+  Status       : 
+  IP Address   : 
+  OS           : 
+  Version      : 
+  Group        : 
+  Cluster Node : 
+  Reg. Date    : 
+  Last Alive   : 
+  ── Vulnerabilities ────────────────────────────────
+  Critical     : 
+  High         : 
+  Medium       : 
+  Low          : 
+  ── SCA Latest Scan ────────────────────────────────
+  Policy       : 
+  End Scan     : 
+  Passed       : 
+  Failed       : 
+  N/A          : 
+  Score        : 
+  Scraped At   : 2026-05-23 12:00:12
+  ⚠️  Error      : Agent ID not found in wazuh-states-vulnerabilities index
+────────────────────────────────────────────────────────────────
+
+────────────────────────────────────────────────────────────────
+  ASSET        : BBDSK0788
+  AGENT ID     : 
+  Status       : 
+  IP Address   : 
+  OS           : 
+  Version      : 
+  Group        : 
+  Cluster Node : 
+  Reg. Date    : 
+  Last Alive   : 
+  ── Vulnerabilities ────────────────────────────────
+  Critical     : 
+  High         : 
+  Medium       : 
+  Low          : 
+  ── SCA Latest Scan ────────────────────────────────
+  Policy       : 
+  End Scan     : 
+  Passed       : 
+  Failed       : 
+  N/A          : 
+  Score        : 
+  Scraped At   : 2026-05-23 12:00:14
+  ⚠️  Error      : Agent ID not found in wazuh-states-vulnerabilities index
+────────────────────────────────────────────────────────────────
+
+────────────────────────────────────────────────────────────────
+  ASSET        : BBDSK0891
+  AGENT ID     : 
+  Status       : 
+  IP Address   : 
+  OS           : 
+  Version      : 
+  Group        : 
+  Cluster Node : 
+  Reg. Date    : 
+  Last Alive   : 
+  ── Vulnerabilities ────────────────────────────────
+  Critical     : 
+  High         : 
+  Medium       : 
+  Low          : 
+  ── SCA Latest Scan ────────────────────────────────
+  Policy       : 
+  End Scan     : 
+  Passed       : 
+  Failed       : 
+  N/A          : 
+  Score        : 
+  Scraped At   : 2026-05-23 12:00:16
+  ⚠️  Error      : Agent ID not found in wazuh-states-vulnerabilities index
+────────────────────────────────────────────────────────────────
+
+────────────────────────────────────────────────────────────────
+  ASSET        : BBDSK0831
+  AGENT ID     : 
+  Status       : 
+  IP Address   : 
+  OS           : 
+  Version      : 
+  Group        : 
+  Cluster Node : 
+  Reg. Date    : 
+  Last Alive   : 
+  ── Vulnerabilities ────────────────────────────────
+  Critical     : 
+  High         : 
+  Medium       : 
+  Low          : 
+  ── SCA Latest Scan ────────────────────────────────
+  Policy       : 
+  End Scan     : 
+  Passed       : 
+  Failed       : 
+  N/A          : 
+  Score        : 
+  Scraped At   : 2026-05-23 12:00:18
+  ⚠️  Error      : Agent ID not found in wazuh-states-vulnerabilities index
+────────────────────────────────────────────────────────────────
+
+────────────────────────────────────────────────────────────────
+  ASSET        : BBDSK0930
+  AGENT ID     : 
+  Status       : 
+  IP Address   : 
+  OS           : 
+  Version      : 
+  Group        : 
+  Cluster Node : 
+  Reg. Date    : 
+  Last Alive   : 
+  ── Vulnerabilities ────────────────────────────────
+  Critical     : 
+  High         : 
+  Medium       : 
+  Low          : 
+  ── SCA Latest Scan ────────────────────────────────
+  Policy       : 
+  End Scan     : 
+  Passed       : 
+  Failed       : 
+  N/A          : 
+  Score        : 
+  Scraped At   : 2026-05-23 12:00:20
+  ⚠️  Error      : Agent ID not found in wazuh-states-vulnerabilities index
+────────────────────────────────────────────────────────────────
+
+────────────────────────────────────────────────────────────────
+  ASSET        : BBDSK0872
+  AGENT ID     : 
+  Status       : 
+  IP Address   : 
+  OS           : 
+  Version      : 
+  Group        : 
+  Cluster Node : 
+  Reg. Date    : 
+  Last Alive   : 
+  ── Vulnerabilities ────────────────────────────────
+  Critical     : 
+  High         : 
+  Medium       : 
+  Low          : 
+  ── SCA Latest Scan ────────────────────────────────
+  Policy       : 
+  End Scan     : 
+  Passed       : 
+  Failed       : 
+  N/A          : 
+  Score        : 
+  Scraped At   : 2026-05-23 12:00:22
+  ⚠️  Error      : Agent ID not found in wazuh-states-vulnerabilities index
+────────────────────────────────────────────────────────────────
+
+────────────────────────────────────────────────────────────────
+  ASSET        : BBDSK0792
+  AGENT ID     : 
+  Status       : 
+  IP Address   : 
+  OS           : 
+  Version      : 
+  Group        : 
+  Cluster Node : 
+  Reg. Date    : 
+  Last Alive   : 
+  ── Vulnerabilities ────────────────────────────────
+  Critical     : 
+  High         : 
+  Medium       : 
+  Low          : 
+  ── SCA Latest Scan ────────────────────────────────
+  Policy       : 
+  End Scan     : 
+  Passed       : 
+  Failed       : 
+  N/A          : 
+  Score        : 
+  Scraped At   : 2026-05-23 12:00:24
+  ⚠️  Error      : Agent ID not found in wazuh-states-vulnerabilities index
+────────────────────────────────────────────────────────────────
+
+────────────────────────────────────────────────────────────────
+  ASSET        : BBDSK0806
+  AGENT ID     : 
+  Status       : 
+  IP Address   : 
+  OS           : 
+  Version      : 
+  Group        : 
+  Cluster Node : 
+  Reg. Date    : 
+  Last Alive   : 
+  ── Vulnerabilities ────────────────────────────────
+  Critical     : 
+  High         : 
+  Medium       : 
+  Low          : 
+  ── SCA Latest Scan ────────────────────────────────
+  Policy       : 
+  End Scan     : 
+  Passed       : 
+  Failed       : 
+  N/A          : 
+  Score        : 
+  Scraped At   : 2026-05-23 12:00:26
+  ⚠️  Error      : Agent ID not found in wazuh-states-vulnerabilities index
+────────────────────────────────────────────────────────────────
+

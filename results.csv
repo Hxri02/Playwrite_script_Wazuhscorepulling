@@ -1,0 +1,10 @@
+Hostname,Agent ID,Status,IP Address,Version,Group,Operating System,Cluster Node,Registration Date,Last Keep Alive,Vuln Critical,Vuln High,Vuln Medium,Vuln Low,SCA Policy,SCA End Scan,SCA Passed,SCA Failed,SCA Not Applicable,SCA Score,Scraped At,Error
+BBDSK0823,,,,,,,,,,,,,,,,,,,,2026-05-23 12:00:10,Agent ID not found in wazuh-states-vulnerabilities index
+BBDSK0802,,,,,,,,,,,,,,,,,,,,2026-05-23 12:00:12,Agent ID not found in wazuh-states-vulnerabilities index
+BBDSK0788,,,,,,,,,,,,,,,,,,,,2026-05-23 12:00:14,Agent ID not found in wazuh-states-vulnerabilities index
+BBDSK0891,,,,,,,,,,,,,,,,,,,,2026-05-23 12:00:16,Agent ID not found in wazuh-states-vulnerabilities index
+BBDSK0831,,,,,,,,,,,,,,,,,,,,2026-05-23 12:00:18,Agent ID not found in wazuh-states-vulnerabilities index
+BBDSK0930,,,,,,,,,,,,,,,,,,,,2026-05-23 12:00:20,Agent ID not found in wazuh-states-vulnerabilities index
+BBDSK0872,,,,,,,,,,,,,,,,,,,,2026-05-23 12:00:22,Agent ID not found in wazuh-states-vulnerabilities index
+BBDSK0792,,,,,,,,,,,,,,,,,,,,2026-05-23 12:00:24,Agent ID not found in wazuh-states-vulnerabilities index
+BBDSK0806,,,,,,,,,,,,,,,,,,,,2026-05-23 12:00:26,Agent ID not found in wazuh-states-vulnerabilities index
