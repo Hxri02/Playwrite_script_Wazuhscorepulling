@@ -1,0 +1,213 @@
+WAZUH ASSET SCRAPE REPORT
+Generated : 2026-06-15 16:11:57
+Total     : 634
+==============================================================
+
+──────────────────────────────────────────────────────────────
+  ASSET      : BBDSK0462
+  ID         : 645
+  Status     : active
+  IP Address : 172.18.117.114
+  OS         : Ubuntu 24.04.4 LTS
+  Version    : Wazuh v4.10.1
+  Group      : CS
+  Cluster    : maa1g12-oss-03
+  Reg. Date  : Jun 6, 2025 @ 17:35:23.000
+  Last Alive : Jun 15, 2026 @ 16:12:17.000
+  ── Vulnerabilities ──────────────────────────────
+  Critical   : 85
+  High       : 610
+  Medium     : 880
+  Low        : 64
+  ── SCA Latest Scan ──────────────────────────────
+  Policy     : CIS Ubuntu Linux 24.04 LTS Benchmark v1.0.0.
+  End Scan   : Jun 15, 2026 @ 16:07:23.000
+  Passed     : 221
+  Failed     : 16
+  N/A        : 7
+  Score      : 93%
+  Scraped At : 2026-06-15 16:12:36
+──────────────────────────────────────────────────────────────
+
+──────────────────────────────────────────────────────────────
+  ASSET      : BBDSK0704
+  ID         : 009
+  Status     : active
+  IP Address : 172.18.117.23
+  OS         : Ubuntu 24.04.4 LTS
+  Version    : Wazuh v4.10.1
+  Group      : CS
+  Cluster    : maa1g12-oss-03
+  Reg. Date  : Feb 19, 2025 @ 16:14:38.000
+  Last Alive : Jun 15, 2026 @ 16:12:32.000
+  ── Vulnerabilities ──────────────────────────────
+  Critical   : 72
+  High       : 604
+  Medium     : 876
+  Low        : 62
+  ── SCA Latest Scan ──────────────────────────────
+  Policy     : CIS Ubuntu Linux 24.04 LTS Benchmark v1.0.0.
+  End Scan   : Jun 15, 2026 @ 16:06:23.000
+  Passed     : 219
+  Failed     : 17
+  N/A        : 8
+  Score      : 92%
+  Scraped At : 2026-06-15 16:12:52
+──────────────────────────────────────────────────────────────
+
+──────────────────────────────────────────────────────────────
+  ASSET      : BBDSK0420
+  ID         : 109
+  Status     : active
+  IP Address : 172.18.117.42
+  OS         : Ubuntu 24.04.4 LTS
+  Version    : Wazuh v4.10.1
+  Group      : CS
+  Cluster    : maa1g12-oss-03
+  Reg. Date  : May 29, 2025 @ 17:16:29.000
+  Last Alive : Jun 15, 2026 @ 16:12:53.000
+  ── Vulnerabilities ──────────────────────────────
+  Critical   : 72
+  High       : 604
+  Medium     : 876
+  Low        : 62
+  ── SCA Latest Scan ──────────────────────────────
+  Policy     : CIS Ubuntu Linux 24.04 LTS Benchmark v1.0.0.
+  End Scan   : Jun 15, 2026 @ 16:06:25.000
+  Passed     : 218
+  Failed     : 18
+  N/A        : 8
+  Score      : 92%
+  Scraped At : 2026-06-15 16:13:09
+──────────────────────────────────────────────────────────────
+
+──────────────────────────────────────────────────────────────
+  ASSET      : BBDSK0718
+  ID         : 110
+  Status     : active
+  IP Address : 172.18.117.162
+  OS         : Ubuntu 24.04.4 LTS
+  Version    : Wazuh v4.10.1
+  Group      : CS
+  Cluster    : maa1g12-oss-01
+  Reg. Date  : May 29, 2025 @ 17:18:07.000
+  Last Alive : Jun 15, 2026 @ 16:13:12.000
+  ── Vulnerabilities ──────────────────────────────
+  Critical   : 72
+  High       : 603
+  Medium     : 874
+  Low        : 71
+  ── SCA Latest Scan ──────────────────────────────
+  Policy     : CIS Ubuntu Linux 24.04 LTS Benchmark v1.0.0.
+  End Scan   : Jun 15, 2026 @ 16:06:37.000
+  Passed     : 218
+  Failed     : 18
+  N/A        : 8
+  Score      : 92%
+  Scraped At : 2026-06-15 16:13:25
+──────────────────────────────────────────────────────────────
+
+──────────────────────────────────────────────────────────────
+  ASSET      : BBDSK0565
+  ID         : 111
+  Status     : active
+  IP Address : 172.18.117.46
+  OS         : Ubuntu 24.04.4 LTS
+  Version    : Wazuh v4.10.1
+  Group      : CS
+  Cluster    : maa1g12-oss-01
+  Reg. Date  : May 29, 2025 @ 17:19:29.000
+  Last Alive : Jun 15, 2026 @ 16:13:23.000
+  ── Vulnerabilities ──────────────────────────────
+  Critical   : 72
+  High       : 603
+  Medium     : 874
+  Low        : 62
+  ── SCA Latest Scan ──────────────────────────────
+  Policy     : CIS Ubuntu Linux 24.04 LTS Benchmark v1.0.0.
+  End Scan   : Jun 15, 2026 @ 16:06:18.000
+  Passed     : 218
+  Failed     : 18
+  N/A        : 8
+  Score      : 92%
+  Scraped At : 2026-06-15 16:13:38
+──────────────────────────────────────────────────────────────
+
+──────────────────────────────────────────────────────────────
+  ASSET      : BBDSK0583
+  ID         : 112
+  Status     : active
+  IP Address : 172.18.117.145
+  OS         : Ubuntu 24.04.4 LTS
+  Version    : Wazuh v4.10.1
+  Group      : CS
+  Cluster    : maa1g12-oss-03
+  Reg. Date  : May 29, 2025 @ 17:21:20.000
+  Last Alive : Jun 15, 2026 @ 16:13:44.000
+  ── Vulnerabilities ──────────────────────────────
+  Critical   : 72
+  High       : 602
+  Medium     : 874
+  Low        : 62
+  ── SCA Latest Scan ──────────────────────────────
+  Policy     : CIS Ubuntu Linux 24.04 LTS Benchmark v1.0.0.
+  End Scan   : Jun 15, 2026 @ 16:05:57.000
+  Passed     : 218
+  Failed     : 18
+  N/A        : 8
+  Score      : 92%
+  Scraped At : 2026-06-15 16:13:57
+──────────────────────────────────────────────────────────────
+
+──────────────────────────────────────────────────────────────
+  ASSET      : BBDSK0698
+  ID         : 114
+  Status     : active
+  IP Address : 172.18.116.218
+  OS         : Ubuntu 24.04.4 LTS
+  Version    : Wazuh v4.10.1
+  Group      : CS
+  Cluster    : maa1g12-oss-01
+  Reg. Date  : May 29, 2025 @ 17:23:21.000
+  Last Alive : Jun 15, 2026 @ 16:14:04.000
+  ── Vulnerabilities ──────────────────────────────
+  Critical   : 72
+  High       : 587
+  Medium     : 866
+  Low        : 71
+  ── SCA Latest Scan ──────────────────────────────
+  Policy     : CIS Ubuntu Linux 24.04 LTS Benchmark v1.0.0.
+  End Scan   : Jun 15, 2026 @ 16:06:23.000
+  Passed     : 218
+  Failed     : 18
+  N/A        : 8
+  Score      : 92%
+  Scraped At : 2026-06-15 16:14:13
+──────────────────────────────────────────────────────────────
+
+──────────────────────────────────────────────────────────────
+  ASSET      : BBDSK0398
+  ID         : 336
+  Status     : active
+  IP Address : 172.18.116.234
+  OS         : Ubuntu 24.04.4 LTS
+  Version    : Wazuh v4.10.1
+  Group      : CS
+  Cluster    : maa1g12-oss-01
+  Reg. Date  : Jun 2, 2025 @ 10:32:46.000
+  Last Alive : Jun 15, 2026 @ 16:14:23.000
+  ── Vulnerabilities ──────────────────────────────
+  Critical   : 72
+  High       : 603
+  Medium     : 874
+  Low        : 62
+  ── SCA Latest Scan ──────────────────────────────
+  Policy     : CIS Ubuntu Linux 24.04 LTS Benchmark v1.0.0.
+  End Scan   : Jun 15, 2026 @ 16:06:21.000
+  Passed     : 216
+  Failed     : 20
+  N/A        : 8
+  Score      : 91%
+  Scraped At : 2026-06-15 16:14:30
+──────────────────────────────────────────────────────────────
+

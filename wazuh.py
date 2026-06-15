@@ -1,182 +1,275 @@
 """
-Wazuh Dashboard - Scrape ALL Agents (Ubuntu)
-Optimized for 600+ machines - direct ID + fallback search
+╔══════════════════════════════════════════════════════════════╗
+║          WAZUH DASHBOARD — ASSET BULK SCRAPER v2             ║
+║          Playwright Script (Python 3.11)                     ║
+╚══════════════════════════════════════════════════════════════╝
 """
 
 import csv
 import time
+import os
 import sys
 from datetime import datetime
-from playwright.sync_api import sync_playwright
+from playwright.sync_api import sync_playwright, TimeoutError as PlaywrightTimeout
 
-# ------------------------------------------------------------
-#  CONFIG
-# ------------------------------------------------------------
-WAZUH_URL   = "https://wazuh-dash.inf.bankbazaar.com"
-USERNAME    = "itsupport"
-PASSWORD    = "r01ddl345"
-HEADLESS    = False
-DELAY_SEC   = 0.5
-# ------------------------------------------------------------
+# ─────────────────────────────────────────────
+#  CONFIG — Edit these before running
+# ─────────────────────────────────────────────
+WAZUH_URL   = "https://wazuh-dash.inf.bankbazaar.com"  # No trailing slash
+USERNAME    = "itsupport"                           # ← Your Wazuh login ID
+PASSWORD    = "r01ddl345"                           # ← Your Wazuh password
+ASSETS_FILE = "assets.txt"                             # One hostname per line
+# Use timestamped filenames to avoid "Permission denied" errors
+timestamp = datetime.now().strftime("%Y%m%d_%H%M%S")
+OUTPUT_CSV  = f"results_{timestamp}.csv"
+OUTPUT_TXT  = f"results_{timestamp}.txt"
+HEADLESS    = False   # False = see browser (recommended for first run)
+DELAY_SEC   = 5       # Wait between each asset (target ~5s budget per asset)
+
+# How long to wait for the agent-detail data (info bar/vulns/SCA) to actually
+# populate after navigating to an agent. If it's still empty after this many
+# seconds, the page is reloaded and we wait again — this fixes the
+# "API failed to load on refresh" issue.
+DATA_READY_TIMEOUT  = 5    # seconds to wait per attempt
+MAX_RELOAD_ATTEMPTS = 2    # how many times to reload the page if data is empty
+# ─────────────────────────────────────────────
 
 CSV_HEADERS = [
     "Hostname", "ID", "Status", "IP Address", "Version", "Group",
     "Operating System", "Cluster Node", "Registration Date", "Last Keep Alive",
     "Vuln Critical", "Vuln High", "Vuln Medium", "Vuln Low",
     "SCA Policy", "SCA End Scan", "SCA Passed", "SCA Failed",
-    "SCA Not Applicable", "SCA Score", "Scraped At", "Error"
+    "SCA Not Applicable", "SCA Score",
+    "Scraped At", "Error"
 ]
 
-# ------------------------------------------------------------
-#  LOGIN
-# ------------------------------------------------------------
-def login(page):
-    print("\n[+] Opening Wazuh login page...")
-    page.goto(WAZUH_URL, wait_until="domcontentloaded")
-    time.sleep(2)
 
-    strategies = [
-        ("input[data-test-subj='user-name']", "input[data-test-subj='password']", "button[data-test-subj='submit']"),
-        ("#user-name", "#password", "button[type='submit']"),
-        ("input[name='username']", "input[name='password']", "button[type='submit']"),
-        ("input[name='user']", "input[name='password']", "button[type='submit']"),
-        ("input[placeholder*='ser']", "input[placeholder*='ass']", "button[type='submit']"),
-        ("input[id*='user']", "input[id*='pass']", "button[type='submit']"),
-        ("input[type='text']:visible", "input[type='password']:visible", "button[type='submit']"),
+def safe_text(page, selector, timeout=5000):
+    """Safely get text content. Returns '' if not found."""
+    try:
+        el = page.wait_for_selector(selector, timeout=timeout, state="visible")
+        return el.inner_text().strip() if el else ""
+    except Exception:
+        return ""
+
+
+def login(page):
+    """
+    Login to Wazuh (OpenSearch Dashboards).
+    Tries multiple selector strategies used across Wazuh versions.
+    """
+    print(f"\n🔐 Opening Wazuh login page...")
+    page.goto(WAZUH_URL, wait_until="domcontentloaded")
+    time.sleep(3)
+
+    print(f"   Current URL: {page.url}")
+
+    # ── Wazuh / OpenSearch Dashboards login selectors ──
+    # Try each pair until one works
+    login_strategies = [
+        # Wazuh 4.x / OpenSearch Dashboards (most common)
+        ("input[data-test-subj='user-name']",     "input[data-test-subj='password']",     "button[data-test-subj='submit']"),
+        # Older Wazuh / Kibana-based
+        ("#user-name",                             "#password",                             "button[type='submit']"),
+        # Generic HTML name attributes
+        ("input[name='username']",                 "input[name='password']",               "button[type='submit']"),
+        ("input[name='user']",                     "input[name='password']",               "button[type='submit']"),
+        # Placeholder-based
+        ("input[placeholder*='ser']",              "input[placeholder*='ass']",            "button[type='submit']"),
+        # ID-based
+        ("input[id*='user']",                      "input[id*='pass']",                    "button[type='submit']"),
+        # Any visible text inputs (last resort)
+        ("input[type='text']:visible",             "input[type='password']:visible",       "button[type='submit']"),
     ]
 
-    for user_sel, pass_sel, btn_sel in strategies:
+    logged_in = False
+    for user_sel, pass_sel, btn_sel in login_strategies:
         try:
-            page.wait_for_selector(user_sel, timeout=4000, state="visible")
-            print(f"   [+] Found login form using: {user_sel}")
-            page.fill(user_sel, USERNAME)
-            page.fill(pass_sel, PASSWORD)
-            page.click(btn_sel)
-            page.wait_for_url(lambda url: "login" not in url and "signin" not in url, timeout=15000)
-            time.sleep(2)
-            if page.query_selector("text=Application Not Found"):
-                page.goto(f"{WAZUH_URL}/app/wz-home", wait_until="domcontentloaded")
-                page.wait_for_load_state("networkidle", timeout=8000)
-            return
-        except Exception:
-            continue
-    raise Exception("Login failed")
+            page.wait_for_selector(user_sel, timeout=5000, state="visible")
+            print(f"   ✅ Found login form using: {user_sel}")
 
-# ------------------------------------------------------------
-#  GET ALL AGENTS (correct column mapping)
-# ------------------------------------------------------------
-def get_all_agents(page):
-    # Load the agents table
-    for url in [f"{WAZUH_URL}/app/endpoints-summary", f"{WAZUH_URL}/app/wazuh#/agents"]:
-        try:
-            page.goto(url, wait_until="domcontentloaded", timeout=20000)
-            time.sleep(3)
-            page.wait_for_selector(".euiTableRow, table tbody tr", timeout=15000)
-            print(f"   [+] Loaded: {url}")
+            page.fill(user_sel, USERNAME)
+            time.sleep(0.5)
+            page.fill(pass_sel, PASSWORD)
+            time.sleep(0.5)
+            page.click(btn_sel)
+
+            # Wait for redirect away from login page
+            # Handles both old (/app/wazuh) and new (/app/wz-home) Wazuh paths
+            page.wait_for_url(
+                lambda url: "login" not in url and "signin" not in url,
+                timeout=20000
+            )
+            time.sleep(2)  # Let the SPA finish rendering
+            # If we land on an "Application Not Found" page (old URL cached),
+            # navigate explicitly to the new wz-home
+            if page.query_selector("text=Application Not Found"):
+                print("   ⚠️  Landed on old URL after login — navigating to wz-home…")
+                page.goto(f"{WAZUH_URL}/app/wz-home", wait_until="domcontentloaded")
+                page.wait_for_load_state("networkidle", timeout=10000)
+            logged_in = True
             break
         except Exception:
             continue
-    else:
-        raise Exception("Could not load agents table")
 
-    # Debug: print first row cell texts
-    cells = page.evaluate("""
-        () => {
-            const row = document.querySelector('.euiTableRow, table tbody tr');
-            if (!row) return [];
-            return Array.from(row.querySelectorAll('td')).map(c => c.innerText.trim());
-        }
-    """)
-    print(f"   First row cells: {cells}")
+    if not logged_in:
+        # Last resort: dump what's on the page to help debug
+        inputs = page.query_selector_all("input")
+        print("\n   ⚠️  Could not find login form automatically.")
+        print("   Inputs found on page:")
+        for inp in inputs:
+            try:
+                print(f"     - type={inp.get_attribute('type')} "
+                      f"name={inp.get_attribute('name')} "
+                      f"id={inp.get_attribute('id')} "
+                      f"placeholder={inp.get_attribute('placeholder')} "
+                      f"data-test-subj={inp.get_attribute('data-test-subj')}")
+            except Exception:
+                pass
+        raise Exception("Login failed — see input details above to fix selectors")
 
-    # Adjust these indices based on the printed cells:
-    # Our observed: col0 = '', col1 = '006', col2 = 'BBDSK0390'
-    id_col = 1      # column containing the agent ID
-    name_col = 2    # column containing the hostname
+    time.sleep(3)
+    print(f"   ✅ Login successful! URL: {page.url}")
 
-    agents = page.evaluate(f"""
-        () => {{
-            const agents = [];
-            const rows = document.querySelectorAll('.euiTableRow, table tbody tr');
-            const idCol = {id_col};
-            const nameCol = {name_col};
-            rows.forEach(row => {{
-                const cells = row.querySelectorAll('td');
-                if (cells.length <= Math.max(idCol, nameCol)) return;
-                const id = cells[idCol]?.innerText.trim() || '';
-                const name = cells[nameCol]?.innerText.trim() || '';
-                if (name && id && /^\\d+$/.test(id)) {{
-                    agents.push({{ name: name, id: id }});
-                }}
-            }});
-            return agents;
-        }}
-    """)
 
-    if not agents:
-        raise Exception("No agents extracted – check column indices")
-    print(f"   [+] Extracted {len(agents)} agents")
-    for a in agents[:5]:
-        print(f"       Name: {a['name']}  |  ID: {a['id']}")
-    return agents
+def navigate_to_agent(page, hostname):
+    """
+    Navigate directly to the agent page by searching in Endpoints.
+    Returns True if found, False if not.
+    """
+    print(f"\n  🔍 Searching: {hostname}")
 
-# ------------------------------------------------------------
-#  NAVIGATE TO AGENT DETAIL
-# ------------------------------------------------------------
-def navigate_to_agent_detail(page, agent_id):
-    # URL pattern that worked with your OpenSearch Dashboards
-    detail_url = f"{WAZUH_URL}/app/endpoints-summary?agentId={agent_id}"
-    try:
-        page.goto(detail_url, wait_until="domcontentloaded", timeout=10000)
-        time.sleep(2)
-        # Check if we landed on a valid agent detail page
-        if page.query_selector(".euiDescriptionList__title, [data-test-subj*='agentId'], .wz-welcome-page-agent-info"):
-            page.wait_for_load_state("networkidle", timeout=5000)
-            return True
-    except Exception:
-        pass
-    return False
+    # ── Try multiple URL patterns across Wazuh versions ──
+    # Wazuh 4.4+ / OpenSearch Dashboards  →  /app/endpoints-summary
+    # Wazuh 4.x  / Kibana-based           →  /app/wazuh#/agents
+    agent_list_urls = [
+        f"{WAZUH_URL}/app/endpoints-summary",   # NEW (4.4+ / OpenSearch)
+        f"{WAZUH_URL}/app/wazuh#/agents",        # OLD (Kibana / earlier 4.x)
+        f"{WAZUH_URL}/app/wazuh#/agents-preview",
+    ]
 
-# ------------------------------------------------------------
-#  FALLBACK SEARCH (original working method)
-# ------------------------------------------------------------
-def navigate_by_search(page, hostname):
-    print(f"     [!] Falling back to search for {hostname}")
-    page.goto(f"{WAZUH_URL}/app/endpoints-summary", wait_until="domcontentloaded")
-    time.sleep(2)
-    # Find search box
-    search_box = None
-    for sel in ["input[placeholder*='earch']", "input[placeholder*='ilter']", "input[type='search']", ".euiFieldSearch"]:
+    navigated = False
+    for url in agent_list_urls:
         try:
-            search_box = page.wait_for_selector(sel, timeout=3000)
-            if search_box:
+            page.goto(url, wait_until="domcontentloaded", timeout=15000)
+            page.wait_for_load_state("networkidle", timeout=10000)
+            time.sleep(1)
+            # Check we didn't land on the "Application Not Found" error page
+            if page.query_selector("text=Application Not Found") is None:
+                print(f"     ✅ Agents page loaded: {url}")
+                navigated = True
+                break
+            else:
+                print(f"     ⚠️  Application Not Found at {url}, trying next…")
+        except Exception as e:
+            print(f"     ⚠️  Failed to load {url}: {e}")
+            continue
+
+    if not navigated:
+        print(f"     ❌ Could not reach agents list — all URL patterns failed")
+        return False
+
+    # ── Find & use the search box ──
+    search_selectors = [
+        "input[placeholder*='earch']",
+        "input[placeholder*='ilter']",
+        "input[placeholder*='agent']",
+        ".euiFieldSearch",
+        "input[data-test-subj*='search']",
+        "input[aria-label*='earch']",
+        "input[type='search']",
+    ]
+
+    search_box = None
+    for sel in search_selectors:
+        try:
+            el = page.wait_for_selector(sel, timeout=3000, state="visible")
+            if el:
+                search_box = el
+                print(f"     Found search box: {sel}")
                 break
         except Exception:
             continue
+
     if not search_box:
+        # Try finding by evaluating JS
+        try:
+            page.evaluate("""
+                const inputs = document.querySelectorAll('input');
+                for (const inp of inputs) {
+                    if (inp.offsetParent !== null) {  // visible
+                        console.log('VISIBLE INPUT:', inp.type, inp.name, inp.id, inp.placeholder);
+                    }
+                }
+            """)
+        except Exception:
+            pass
+        print(f"     ⚠️  Search box not found for {hostname}")
         return False
+
+    # Clear and type hostname
+    search_box.click(click_count=3)  # select all (triple_click is Page-level only)
     search_box.fill("")
     search_box.type(hostname, delay=50)
-    time.sleep(1)
+    time.sleep(0.5)
     search_box.press("Enter")
-    time.sleep(2)
-    # Click on the matching row
-    for sel in [f"//span[text()='{hostname}']", f"//a[text()='{hostname}']", f"//td[text()='{hostname}']", f"text={hostname}"]:
+    time.sleep(1)
+
+    # ── Click the matching agent row ──
+    click_selectors = [
+        f"//span[normalize-space(text())='{hostname}']",
+        f"//a[normalize-space(text())='{hostname}']",
+        f"//td[normalize-space(text())='{hostname}']",
+        f"//div[normalize-space(text())='{hostname}']",
+        f"text={hostname}",
+    ]
+
+    for sel in click_selectors:
         try:
-            el = page.wait_for_selector(sel, timeout=4000)
+            el = page.wait_for_selector(sel, timeout=2500)
             if el:
                 el.click()
-                time.sleep(2)
+                # Wait for agent detail panel — any of these confirm the detail page loaded.
+                # Combined into ONE selector so Playwright returns as soon as the FIRST
+                # one appears, instead of checking each candidate sequentially
+                # (which could take up to 6 selectors x 6s = 36s in the worst case).
+                detail_selector = (
+                    ".euiDescriptionList__title, "          # info bar loaded
+                    "[data-test-subj*='agentId'], "         # agent ID field
+                    "[data-test-subj*='agentStatus'], "     # agent status badge
+                    ".wz-welcome-page-agent-info"           # Wazuh welcome panel
+                )
+                detail_loaded = False
+                try:
+                    page.wait_for_selector(detail_selector, timeout=6000, state="visible")
+                    detail_loaded = True
+                except Exception:
+                    pass
+                if not detail_loaded:
+                    # Final fallback: just wait for networkidle
+                    try:
+                        page.wait_for_load_state("networkidle", timeout=6000)
+                    except Exception:
+                        pass
+                time.sleep(0.5)
+                print(f"     ✅ Opened agent page for {hostname}")
                 return True
         except Exception:
             continue
+
+    print(f"     ❌ {hostname} not found in results")
     return False
 
-# ------------------------------------------------------------
-#  EXTRACTION FUNCTIONS
-# ------------------------------------------------------------
+
 def extract_info_bar(page):
+    """
+    Extract the top info bar fields using multiple strategies.
+    Covers Wazuh 4.x (Kibana) through 4.4+ (OpenSearch Dashboards).
+    Returns a dict with all field values.
+    """
     result = {}
+
+    # ── Strategy 1: EUI Description List (most common across all versions) ──
     try:
         result = page.evaluate("""
             () => {
@@ -190,18 +283,32 @@ def extract_info_bar(page):
             }
         """)
         if result and len(result) > 2:
-            return result
-    except Exception:
-        pass
+            return result   # got something useful
+    except Exception as e:
+        print(f"       Info bar S1 error: {e}")
+
+    if len(result) > 2:
+        return result
+
+    # ── Strategy 2: data-test-subj attributes (Wazuh 4.4+ OpenSearch) ──
     try:
         result2 = page.evaluate("""
             () => {
                 const data = {};
+                // Wazuh 4.4+ uses data-test-subj for agent detail fields
                 const fieldMap = {
-                    'agentId': 'ID', 'agentStatus': 'Status', 'agentIp': 'IP address',
-                    'agentVersion': 'Version', 'agentGroup': 'Group', 'agentGroups': 'Groups',
-                    'agentOs': 'Operating system', 'agentNode': 'Cluster node',
-                    'agentRegistrationDate': 'Registration date', 'agentLastKeepAlive': 'Last keep alive'
+                    'agentId':                'ID',
+                    'agentStatus':            'Status',
+                    'agentIp':                'IP address',
+                    'agentVersion':           'Version',
+                    'agentGroup':             'Group',
+                    'agentGroups':            'Groups',
+                    'agentOs':                'Operating system',
+                    'agentOsPlatform':        'Operating system',
+                    'agentNode':              'Cluster node',
+                    'agentClusterNode':       'Cluster node',
+                    'agentRegistrationDate':  'Registration date',
+                    'agentLastKeepAlive':     'Last keep alive',
                 };
                 Object.entries(fieldMap).forEach(([subj, key]) => {
                     const el = document.querySelector(`[data-test-subj*="${subj}"]`);
@@ -210,189 +317,400 @@ def extract_info_bar(page):
                 return data;
             }
         """)
-        if result2:
+        if result2 and len(result2) > 0:
             result.update(result2)
-    except Exception:
-        pass
+    except Exception as e:
+        print(f"       Info bar S2 error: {e}")
+
+    if len(result) > 2:
+        return result
+
+    # ── Strategy 3: wz-stat / React props inspection ──
+    try:
+        result3 = page.evaluate("""
+            () => {
+                const data = {};
+                // wz-stat angular/react components used in some Wazuh versions
+                document.querySelectorAll('wz-stat').forEach(el => {
+                    const lbl = el.getAttribute('label') || el.querySelector('[class*="label"]')?.innerText;
+                    const val = el.getAttribute('value') || el.querySelector('[class*="value"]')?.innerText;
+                    if (lbl && val) data[lbl.trim()] = val.trim();
+                });
+                // Also try euiStat components
+                document.querySelectorAll('.euiStat').forEach(el => {
+                    const lbl = el.querySelector('.euiStat__title');
+                    const val = el.querySelector('.euiStat__description');
+                    if (lbl && val) data[val.innerText.trim()] = lbl.innerText.trim();
+                });
+                return data;
+            }
+        """)
+        if result3 and len(result3) > 0:
+            result.update(result3)
+    except Exception as e:
+        print(f"       Info bar S3 error: {e}")
+
+    if len(result) > 2:
+        return result
+
+    # ── Strategy 4: Broad key-value scan of entire agent header/overview area ──
+    try:
+        result4 = page.evaluate("""
+            () => {
+                const data = {};
+                // Look for any flex panels in the header region that contain label+value pairs
+                const containers = document.querySelectorAll(
+                    '.wz-welcome-page-agent-info, ' +
+                    '[class*="agent-detail"], [class*="agentDetail"], ' +
+                    '[class*="agent-info"], [class*="agentInfo"], ' +
+                    '.euiPanel .euiFlexGroup, ' +
+                    '.euiPageBody .euiFlexGroup'
+                );
+                containers.forEach(container => {
+                    const titles = container.querySelectorAll('.euiDescriptionList__title');
+                    const descs  = container.querySelectorAll('.euiDescriptionList__description');
+                    titles.forEach((t, i) => {
+                        if (descs[i] && t.innerText.trim())
+                            data[t.innerText.trim()] = descs[i].innerText.trim();
+                    });
+                });
+                return data;
+            }
+        """)
+        if result4 and len(result4) > 0:
+            result.update(result4)
+    except Exception as e:
+        print(f"       Info bar S4 error: {e}")
+
+    # ── Strategy 5: Full-page label scan — last resort ──
+    if len(result) == 0:
+        try:
+            result5 = page.evaluate("""
+                () => {
+                    const data = {};
+                    // Known exact label texts used in Wazuh agent detail
+                    const labels = [
+                        'ID', 'Status', 'IP address', 'Version', 'Groups', 'Group',
+                        'Operating system', 'Cluster node', 'Registration date', 'Last keep alive',
+                        'OS', 'Node', 'Agent ID', 'Agent name'
+                    ];
+                    // Walk all elements looking for these label texts
+                    document.querySelectorAll('span, dt, th, td, div, p').forEach(el => {
+                        const txt = el.innerText?.trim();
+                        if (!txt || el.children.length > 0) return;
+                        const match = labels.find(l => l.toLowerCase() === txt.toLowerCase());
+                        if (match) {
+                            // Try sibling or parent's next sibling for the value
+                            const next = el.nextElementSibling ||
+                                         el.parentElement?.nextElementSibling;
+                            if (next && !data[match]) {
+                                const val = next.innerText?.trim();
+                                if (val && val !== match) data[match] = val;
+                            }
+                        }
+                    });
+                    return data;
+                }
+            """)
+            if result5 and len(result5) > 0:
+                result.update(result5)
+        except Exception as e:
+            print(f"       Info bar S5 error: {e}")
+
+    if not result:
+        print("       ⚠️  Info bar: no data found with any strategy — dumping page structure for debug")
+        try:
+            structure = page.evaluate("""
+                () => [...document.querySelectorAll('.euiDescriptionList__title')]
+                    .map(e => e.innerText.trim()).slice(0, 10)
+            """)
+            print(f"       euiDescriptionList__title elements found: {structure}")
+        except Exception:
+            pass
+
     return result
 
+
 def extract_vulnerabilities(page):
+    """Extract vulnerability counts: Critical, High, Medium, Low."""
     try:
         return page.evaluate("""
             () => {
                 const result = { critical:'', high:'', medium:'', low:'' };
-                const items = document.querySelectorAll('.euiFlexItem, [class*="vuln"]');
+                const items = document.querySelectorAll('.euiFlexItem, [class*="vuln"], [class*="Vuln"]');
+
                 items.forEach(item => {
                     const text = item.innerText || '';
-                    const num = text.match(/^(\\d+)/);
+                    const num  = text.match(/^(\\d+)/);
+
                     if (!num) return;
                     const lower = text.toLowerCase();
+
                     if (lower.includes('critical') && !result.critical) result.critical = num[1];
-                    else if (lower.includes('high') && !result.high) result.high = num[1];
-                    else if (lower.includes('medium') && !result.medium) result.medium = num[1];
-                    else if (lower.includes('low') && !result.low) result.low = num[1];
+                    else if (lower.includes('high')     && !result.high)     result.high     = num[1];
+                    else if (lower.includes('medium')   && !result.medium)   result.medium   = num[1];
+                    else if (lower.includes('low')      && !result.low)      result.low      = num[1];
                 });
+
+                // Fallback: look for large colored numbers near severity labels
+                if (!result.critical) {
+                    const allText = document.body.innerText;
+                    const crit = allText.match(/(\\d+)\\s*Critical/i);
+                    const high = allText.match(/(\\d+)\\s*High/i);
+                    const med  = allText.match(/(\\d+)\\s*Medium/i);
+                    const low  = allText.match(/(\\d+)\\s*Low/i);
+                    if (crit) result.critical = crit[1];
+                    if (high) result.high     = high[1];
+                    if (med)  result.medium   = med[1];
+                    if (low)  result.low      = low[1];
+                }
                 return result;
             }
         """)
     except Exception:
-        return {"critical":"","high":"","medium":"","low":""}
+        return {"critical": "", "high": "", "medium": "", "low": ""}
+
 
 def extract_sca(page):
+    """Extract SCA latest scan data."""
     try:
         return page.evaluate("""
             () => {
                 const result = { policy:'', end_scan:'', passed:'', failed:'', not_applicable:'', score:'' };
+                // Find the SCA table rows
                 const rows = document.querySelectorAll('table tr');
                 rows.forEach(row => {
                     const cells = row.querySelectorAll('td');
-                    if (cells.length >= 5 && cells[0].innerText.trim() && !result.policy) {
-                        result.policy = cells[0].innerText.trim();
-                        result.end_scan = cells[1]?.innerText.trim() || '';
-                        result.passed = cells[2]?.innerText.trim() || '';
-                        result.failed = cells[3]?.innerText.trim() || '';
-                        result.not_applicable = cells[4]?.innerText.trim() || '';
-                        result.score = cells[5]?.innerText.trim() || '';
+                    if (cells.length >= 5) {
+                        // Row with SCA data: policy, end_scan, passed, failed, n/a, score
+                        if (cells[0].innerText.trim() && !result.policy) {
+                            result.policy         = cells[0].innerText.trim();
+                            result.end_scan       = cells[1] ? cells[1].innerText.trim() : '';
+                            result.passed         = cells[2] ? cells[2].innerText.trim() : '';
+                            result.failed         = cells[3] ? cells[3].innerText.trim() : '';
+                            result.not_applicable = cells[4] ? cells[4].innerText.trim() : '';
+                            result.score          = cells[5] ? cells[5].innerText.trim() : '';
+                        }
                     }
                 });
+
+                // Fallback: grab from text near "SCA"
+                if (!result.score) {
+                    const allText = document.body.innerText;
+                    const score = allText.match(/(\\d+%)(?=\\s*$|\\s*\\n)/m);
+                    if (score) result.score = score[1];
+                }
                 return result;
             }
         """)
     except Exception:
-        return {"policy":"","end_scan":"","passed":"","failed":"","not_applicable":"","score":""}
+        return {"policy": "", "end_scan": "", "passed": "", "failed": "", "not_applicable": "", "score": ""}
+
+
+def wait_for_agent_data_ready(page, hostname, timeout_sec=DATA_READY_TIMEOUT, max_retries=MAX_RELOAD_ATTEMPTS):
+    """
+    Poll the info bar until it actually has data (more than 2 fields),
+    for up to `timeout_sec` seconds. If it's still empty — which usually
+    means the underlying API call hasn't returned yet, or failed silently
+    after the SPA navigation — reload the page and try again, up to
+    `max_retries` times.
+
+    Returns the info-bar dict (possibly empty if all retries failed).
+    """
+    for attempt in range(max_retries + 1):
+        deadline = time.time() + timeout_sec
+        info = {}
+        while time.time() < deadline:
+            info = extract_info_bar(page)
+            if len(info) > 2:
+                return info
+            time.sleep(0.5)
+
+        if attempt < max_retries:
+            print(f"     ⏳ Data not ready for {hostname} after {timeout_sec}s "
+                  f"— reloading page (retry {attempt + 1}/{max_retries})")
+            try:
+                page.reload(wait_until="domcontentloaded", timeout=15000)
+                page.wait_for_load_state("networkidle", timeout=10000)
+            except Exception:
+                pass
+            time.sleep(1)
+
+    return info
+
 
 def scrape_agent_details(page, hostname):
+    """Full scrape of agent detail page."""
     data = {h: "" for h in CSV_HEADERS}
-    data["Hostname"] = hostname
+    data["Hostname"]   = hostname
     data["Scraped At"] = datetime.now().strftime("%Y-%m-%d %H:%M:%S")
+
     try:
-        info = extract_info_bar(page)
-        data["ID"] = info.get("ID", "")
-        data["Status"] = info.get("Status", "")
-        data["IP Address"] = info.get("IP address", info.get("IP Address", ""))
-        data["Version"] = info.get("Version", "")
-        data["Group"] = info.get("Group", info.get("Groups", ""))
-        data["Operating System"] = info.get("Operating system", info.get("OS", ""))
-        data["Cluster Node"] = info.get("Cluster node", info.get("Node", ""))
+        # Info bar — wait until the API has actually returned data,
+        # reloading the page if it's empty after DATA_READY_TIMEOUT seconds.
+        info = wait_for_agent_data_ready(page, hostname)
+        print(f"     Info bar keys found: {list(info.keys())}")
+
+        # Map keys (Wazuh uses these exact labels)
+        data["ID"]                = info.get("ID", "")
+        data["Status"]            = info.get("Status", "")
+        data["IP Address"]        = info.get("IP address", info.get("IP Address", ""))
+        data["Version"]           = info.get("Version", "")
+        data["Group"]             = info.get("Group", info.get("Groups", ""))
+        data["Operating System"]  = info.get("Operating system", info.get("OS", ""))
+        data["Cluster Node"]      = info.get("Cluster node", info.get("Node", ""))
         data["Registration Date"] = info.get("Registration date", "")
-        data["Last Keep Alive"] = info.get("Last keep alive", "")
+        data["Last Keep Alive"]   = info.get("Last keep alive", "")
+
+        # Vulnerabilities
         vuln = extract_vulnerabilities(page)
         data["Vuln Critical"] = vuln.get("critical", "")
-        data["Vuln High"] = vuln.get("high", "")
-        data["Vuln Medium"] = vuln.get("medium", "")
-        data["Vuln Low"] = vuln.get("low", "")
+        data["Vuln High"]     = vuln.get("high", "")
+        data["Vuln Medium"]   = vuln.get("medium", "")
+        data["Vuln Low"]      = vuln.get("low", "")
+
+        # SCA
         sca = extract_sca(page)
-        data["SCA Policy"] = sca.get("policy", "")
-        data["SCA End Scan"] = sca.get("end_scan", "")
-        data["SCA Passed"] = sca.get("passed", "")
-        data["SCA Failed"] = sca.get("failed", "")
+        data["SCA Policy"]         = sca.get("policy", "")
+        data["SCA End Scan"]       = sca.get("end_scan", "")
+        data["SCA Passed"]         = sca.get("passed", "")
+        data["SCA Failed"]         = sca.get("failed", "")
         data["SCA Not Applicable"] = sca.get("not_applicable", "")
-        data["SCA Score"] = sca.get("score", "")
+        data["SCA Score"]          = sca.get("score", "")
+
     except Exception as e:
         data["Error"] = str(e)
+        print(f"     ⚠️  Scrape error: {e}")
+
     return data
 
+
 def format_txt_row(data):
-    sep = "-" * 62
-    lines = [sep, f"  ASSET      : {data['Hostname']}", f"  ID         : {data['ID']}",
-             f"  Status     : {data['Status']}", f"  IP Address : {data['IP Address']}",
-             f"  OS         : {data['Operating System']}", f"  Version    : {data['Version']}",
-             f"  Group      : {data['Group']}", f"  Cluster    : {data['Cluster Node']}",
-             f"  Reg. Date  : {data['Registration Date']}", f"  Last Alive : {data['Last Keep Alive']}",
-             f"  -- Vulnerabilities ------------------------------",
-             f"  Critical   : {data['Vuln Critical']}", f"  High       : {data['Vuln High']}",
-             f"  Medium     : {data['Vuln Medium']}", f"  Low        : {data['Vuln Low']}",
-             f"  -- SCA Latest Scan ------------------------------",
-             f"  Policy     : {data['SCA Policy']}", f"  End Scan   : {data['SCA End Scan']}",
-             f"  Passed     : {data['SCA Passed']}", f"  Failed     : {data['SCA Failed']}",
-             f"  N/A        : {data['SCA Not Applicable']}", f"  Score      : {data['SCA Score']}",
-             f"  Scraped At : {data['Scraped At']}"]
+    sep = "─" * 62
+    lines = [
+        sep,
+        f"  ASSET      : {data['Hostname']}",
+        f"  ID         : {data['ID']}",
+        f"  Status     : {data['Status']}",
+        f"  IP Address : {data['IP Address']}",
+        f"  OS         : {data['Operating System']}",
+        f"  Version    : {data['Version']}",
+        f"  Group      : {data['Group']}",
+        f"  Cluster    : {data['Cluster Node']}",
+        f"  Reg. Date  : {data['Registration Date']}",
+        f"  Last Alive : {data['Last Keep Alive']}",
+        f"  ── Vulnerabilities ──────────────────────────────",
+        f"  Critical   : {data['Vuln Critical']}",
+        f"  High       : {data['Vuln High']}",
+        f"  Medium     : {data['Vuln Medium']}",
+        f"  Low        : {data['Vuln Low']}",
+        f"  ── SCA Latest Scan ──────────────────────────────",
+        f"  Policy     : {data['SCA Policy']}",
+        f"  End Scan   : {data['SCA End Scan']}",
+        f"  Passed     : {data['SCA Passed']}",
+        f"  Failed     : {data['SCA Failed']}",
+        f"  N/A        : {data['SCA Not Applicable']}",
+        f"  Score      : {data['SCA Score']}",
+        f"  Scraped At : {data['Scraped At']}",
+    ]
     if data.get("Error"):
-        lines.append(f"  [!] Error    : {data['Error']}")
+        lines.append(f"  ⚠️  Error    : {data['Error']}")
     lines.append(sep)
     return "\n".join(lines)
 
-# ------------------------------------------------------------
-#  MAIN
-# ------------------------------------------------------------
-def main():
-    timestamp = datetime.now().strftime("%Y%m%d_%H%M%S")
-    output_csv = f"all_agents_{timestamp}.csv"
-    output_txt = f"all_agents_{timestamp}.txt"
 
-    print(f"[+] Starting FULL AGENT SCRAPE")
-    print(f"[+] Output -> {output_csv}  +  {output_txt}")
+def main():
+    if not os.path.exists(ASSETS_FILE):
+        print(f"❌ '{ASSETS_FILE}' not found!")
+        sys.exit(1)
+
+    with open(ASSETS_FILE) as f:
+        assets = [l.strip() for l in f if l.strip() and not l.startswith("#")]
+
+    if not assets:
+        print("❌ assets.txt is empty!")
+        sys.exit(1)
+
+    print(f"📋 Loaded {len(assets)} assets from {ASSETS_FILE}")
+    print(f"📄 Output → {OUTPUT_CSV}  +  {OUTPUT_TXT}")
     print("=" * 62)
 
-    with open(output_csv, "w", newline="", encoding="utf-8") as f:
+    not_found = []
+
+    # Init output files
+    with open(OUTPUT_CSV, "w", newline="", encoding="utf-8") as f:
         csv.DictWriter(f, fieldnames=CSV_HEADERS).writeheader()
-    with open(output_txt, "w", encoding="utf-8") as f:
-        f.write(f"WAZUH ALL AGENTS SCRAPE REPORT\n")
+    with open(OUTPUT_TXT, "w", encoding="utf-8") as f:
+        f.write(f"WAZUH ASSET SCRAPE REPORT\n")
         f.write(f"Generated : {datetime.now().strftime('%Y-%m-%d %H:%M:%S')}\n")
+        f.write(f"Total     : {len(assets)}\n")
         f.write("=" * 62 + "\n\n")
 
     with sync_playwright() as p:
-        browser = p.chromium.launch(headless=HEADLESS, args=["--start-maximized", "--ignore-certificate-errors"])
-        context = browser.new_context(viewport={"width": 1600, "height": 900}, ignore_https_errors=True)
+        browser = p.chromium.launch(
+            headless=HEADLESS,
+            args=["--start-maximized", "--ignore-certificate-errors"]
+        )
+        context = browser.new_context(
+            viewport={"width": 1600, "height": 900},
+            ignore_https_errors=True
+        )
         page = context.new_page()
 
+        # Login
         try:
             login(page)
         except Exception as e:
-            print(f"\n[-] Login failed: {e}")
+            print(f"\n❌ Login failed: {e}")
             browser.close()
             sys.exit(1)
 
-        print("\n[+] Fetching all agents from the table...")
-        agents = get_all_agents(page)
+        # Process assets one by one
+        for i, hostname in enumerate(assets, 1):
+            asset_start = time.time()
+            print(f"\n[{i}/{len(assets)}] ── {hostname} {'─'*30}")
 
-        if not agents:
-            print("[-] No agents found. Exiting.")
-            browser.close()
-            sys.exit(1)
+            found = navigate_to_agent(page, hostname)
 
-        print(f"\n[+] Starting scrape of {len(agents)} agents...")
-        failed = []
-        for i, agent in enumerate(agents, 1):
-            name = agent['name']
-            aid = agent['id']
-            print(f"\n[{i}/{len(agents)}] -- {name} (ID: {aid})")
-
-            # Try direct navigation first
-            if navigate_to_agent_detail(page, aid):
-                data = scrape_agent_details(page, name)
-                print(f"     [+] Status: {data['Status']} | IP: {data['IP Address']}")
+            if found:
+                data = scrape_agent_details(page, hostname)
+                print(f"     ID={data['ID']} | {data['Status']} | {data['IP Address']}")
+                print(f"     Vuln  → Crit:{data['Vuln Critical']}  High:{data['Vuln High']}  Med:{data['Vuln Medium']}  Low:{data['Vuln Low']}")
+                print(f"     SCA   → {data['SCA Score']}  Pass:{data['SCA Passed']}  Fail:{data['SCA Failed']}")
             else:
-                # Fallback to search method (slower but works)
-                if navigate_by_search(page, name):
-                    data = scrape_agent_details(page, name)
-                    print(f"     [+] (search) Status: {data['Status']} | IP: {data['IP Address']}")
-                else:
-                    data = {h: "" for h in CSV_HEADERS}
-                    data["Hostname"] = name
-                    data["Error"] = "Could not load agent detail (direct + search)"
-                    data["Scraped At"] = datetime.now().strftime("%Y-%m-%d %H:%M:%S")
-                    failed.append(name)
-                    print(f"     [-] Failed to load detail page")
+                data = {h: "" for h in CSV_HEADERS}
+                data["Hostname"]   = hostname
+                data["Error"]      = "NOT FOUND in Wazuh"
+                data["Scraped At"] = datetime.now().strftime("%Y-%m-%d %H:%M:%S")
+                not_found.append(hostname)
 
-            with open(output_csv, "a", newline="", encoding="utf-8") as f:
+            # Save immediately (safe even if script crashes midway)
+            with open(OUTPUT_CSV, "a", newline="", encoding="utf-8") as f:
                 csv.DictWriter(f, fieldnames=CSV_HEADERS).writerow(data)
-            with open(output_txt, "a", encoding="utf-8") as f:
+            with open(OUTPUT_TXT, "a", encoding="utf-8") as f:
                 f.write(format_txt_row(data) + "\n\n")
 
-            time.sleep(DELAY_SEC)
+            elapsed = time.time() - asset_start
+            print(f"     ⏱  Took {elapsed:.1f}s")
+
+            # Top up to DELAY_SEC total so each asset takes ~DELAY_SEC overall,
+            # without sleeping extra on assets that already took longer.
+            remaining = DELAY_SEC - elapsed
+            if remaining > 0:
+                time.sleep(remaining)
 
         browser.close()
 
     print("\n" + "=" * 62)
-    print(f"[+] COMPLETE — {len(agents)} agents processed")
-    print(f"   Successful: {len(agents) - len(failed)}")
-    print(f"   Failed    : {len(failed)}")
-    if failed:
-        print(f"   Failed list: {', '.join(failed[:20])}")
-    print(f"\n[+] CSV : {output_csv}")
-    print(f"[+] TXT : {output_txt}")
+    print(f"✅  COMPLETE — {len(assets)} assets processed")
+    print(f"   Found     : {len(assets) - len(not_found)}")
+    print(f"   Not found : {len(not_found)}")
+    if not_found:
+        print(f"   Missing   : {', '.join(not_found)}")
+    print(f"\n📄 {OUTPUT_CSV}")
+    print(f"📄 {OUTPUT_TXT}")
     print("=" * 62)
+
 
 if __name__ == "__main__":
     main()
